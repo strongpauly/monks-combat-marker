@@ -42,7 +42,7 @@ export const registerSettings = function () {
 		config: true,
 		default: "modules/monks-combat-marker/markers/marker02.webp",
 		type: String,
-		//filePicker: true,
+		filePicker: "imagevideo",
 		requiresReload: true
 	});
 	game.settings.register(modulename, "token-highlight-picture-hostile", {
@@ -52,7 +52,7 @@ export const registerSettings = function () {
 		config: true,
 		default: "modules/monks-combat-marker/markers/marker01.webp",
 		type: String,
-		//filePicker: true,
+		filePicker: "imagevideo",
 		requiresReload: true
 	});
 	game.settings.register(modulename, "token-highlight-picture-neutral", {
@@ -62,7 +62,7 @@ export const registerSettings = function () {
 		config: true,
 		default: "modules/monks-combat-marker/markers/marker05.webp",
 		type: String,
-		//filePicker: true,
+		filePicker: "imagevideo",
 		requiresReload: true
 	});
 	game.settings.register(modulename, "token-highlight-scale", {

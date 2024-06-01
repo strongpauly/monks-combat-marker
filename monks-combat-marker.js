@@ -29,13 +29,20 @@ export let setting = key => {
 };
 
 export let patchFunc = (prop, func, type = "WRAPPER") => {
-    if (game.modules.get("lib-wrapper")?.active) {
-        libWrapper.register("monks-combat-marker", prop, func, type);
-    } else {
+    let nonLibWrapper = () => {
         const oldFunc = eval(prop);
         eval(`${prop} = function (event) {
-            return func.call(this, oldFunc.bind(this), ...arguments);
+            return func.call(this, ${type != "OVERRIDE" ? "oldFunc.bind(this)," : ""} ...arguments);
         }`);
+    }
+    if (game.modules.get("lib-wrapper")?.active) {
+        try {
+            libWrapper.register("monks-enhanced-journal", prop, func, type);
+        } catch (e) {
+            nonLibWrapper();
+        }
+    } else {
+        nonLibWrapper();
     }
 }
 
@@ -44,54 +51,23 @@ export class MonksCombatMarker {
     static markerCache = {};
 
     static init() {
-        /*
-        Object.defineProperty(Scene.prototype, "thumbnail", {
-            get: function () {
-                return this.getFlag('monks-combat-marker', 'thumb') || this.thumb;
+        registerSettings();
+
+        patchFunc("Token.prototype._onDragStart", function (wrapped, ...args) {
+            wrapped.call(this, ...args);
+
+            if (this._original?.combatMarker?.transform != undefined) {
+                this._original.combatMarker.visible = false;
             }
         });
 
-        let oldUpdateObject = SceneConfig.prototype._updateObject;
-        SceneConfig.prototype._updateObject = async function (event, formData) {
-            let img = formData['flags.monks-combat-marker.thumbnail'];
-            let td = (img ? await this.document.createThumbnail({ img: img }) : null);
-            formData['flags.monks-combat-marker.thumb'] = td?.thumb;
-
-            return oldUpdateObject.call(this, event, formData);
-        }*/
-
-        registerSettings();
-        //MonksCombatMarker.registerHotKeys();
-
-        let tokenDragStart = function (wrapped, ...args) {
+        patchFunc("Token.prototype._onDragEnd", function (wrapped, ...args) {
             wrapped.call(this, ...args);
 
-            if (this._original?.ldmarker?.transform != undefined) {
-                this._original.ldmarker.visible = false;
+            if (this._original?.combatMarker?.transform != undefined) {
+                this._original.combatMarker.visible = this._original.isVisible && !MonksCombatMarker.isDefeated(this._original);
             }
-        }
-
-        let tokenDragEnd = function (wrapped, ...args) {
-            wrapped.call(this, ...args);
-
-            if (this._original?.ldmarker?.transform != undefined) {
-                this._original.ldmarker.visible = this._original.isVisible && !MonksCombatMarker.isDefeated(this._original);
-            }
-        }
-
-        if (game.modules.get("lib-wrapper")?.active) {
-            libWrapper.register("monks-combat-marker", "Token.prototype._onDragStart", tokenDragStart, "WRAPPER");
-            libWrapper.register("monks-combat-marker", "Token.prototype._onDragEnd", tokenDragEnd, "WRAPPER");
-        } else {
-            const oldTokenDragStart = Token.prototype._onDragStart;
-            Token.prototype._onDragStart = function () {
-                return tokenDragStart.call(this, oldTokenDragStart.bind(this), ...arguments);
-            }
-            const oldTokenDragEnd = Token.prototype._onDragEnd;
-            Token.prototype._onDragEnd = function () {
-                return tokenDragEnd.call(this, oldTokenDragEnd.bind(this), ...arguments);
-            }
-        }
+        });
     }
 
     static async ready() {
@@ -107,12 +83,12 @@ export class MonksCombatMarker {
     }
 
     static tokenHighlightScale(token) {
-        let scale = getProperty(token.document.flags, "monks-combat-marker.token-highlight-scale") || setting("token-highlight-scale");
+        let scale = foundry.utils.getProperty(token.document.flags, "monks-combat-marker.token-highlight-scale") || setting("token-highlight-scale");
         return token.document.texture.scaleX < 1 ? scale * token.document.texture.scaleX : scale;
     }
 
     static tokenHighlightAnimation(token) {
-        let animation = getProperty(token.document.flags, "monks-combat-marker.token-combat-animation");
+        let animation = foundry.utils.getProperty(token.document.flags, "monks-combat-marker.token-combat-animation");
         if (!animation) {
             switch (token.document.disposition) {
                 case 1: animation = setting('token-combat-animation'); break;
@@ -154,33 +130,33 @@ export class MonksCombatMarker {
 
         for (let scene of game.scenes) {
             for (let token of scene.tokens) {
-                if (getProperty(token, "flags.monks-little-details.token-highlight")) {
-                    await token.update({ "flags.monks-combat-marker.token-highlight": swapFilename(getProperty(token, "flags.monks-little-details.token-highlight"), true) });
+                if (foundry.utils.getProperty(token, "flags.monks-little-details.token-highlight")) {
+                    await token.update({ "flags.monks-combat-marker.token-highlight": swapFilename(foundry.utils.getProperty(token, "flags.monks-little-details.token-highlight"), true) });
                 }
-                if (getProperty(token, "flags.monks-little-details.token-highlight-scale")) {
-                    await token.update({ "flags.monks-combat-marker.token-highlight-scale": getProperty(token, "flags.monks-little-details.token-highlight-scale") });
+                if (foundry.utils.getProperty(token, "flags.monks-little-details.token-highlight-scale")) {
+                    await token.update({ "flags.monks-combat-marker.token-highlight-scale": foundry.utils.getProperty(token, "flags.monks-little-details.token-highlight-scale") });
                 }
-                if (getProperty(token, "flags.monks-little-details.token-combat-animation")) {
-                    await token.update({ "flags.monks-combat-marker.token-combat-animation": getProperty(token, "flags.monks-little-details.token-combat-animation") });
+                if (foundry.utils.getProperty(token, "flags.monks-little-details.token-combat-animation")) {
+                    await token.update({ "flags.monks-combat-marker.token-combat-animation": foundry.utils.getProperty(token, "flags.monks-little-details.token-combat-animation") });
                 }
-                if (getProperty(token, "flags.monks-little-details.token-combat-animation-hostile")) {
-                    await token.update({ "flags.monks-combat-marker.token-combat-animation-hostile": getProperty(token, "flags.monks-little-details.token-combat-animation-hostile") });
+                if (foundry.utils.getProperty(token, "flags.monks-little-details.token-combat-animation-hostile")) {
+                    await token.update({ "flags.monks-combat-marker.token-combat-animation-hostile": foundry.utils.getProperty(token, "flags.monks-little-details.token-combat-animation-hostile") });
                 }
             }
         }
 
         for (let actor of game.actors) {
-            if (getProperty(actor.prototypeToken, "flags.monks-little-details.token-highlight")) {
-                await actor.prototypeToken.update({ "flags.monks-combat-marker.token-highlight": swapFilename(getProperty(actor.prototypeToken, "flags.monks-little-details.token-highlight"), true) });
+            if (foundry.utils.getProperty(actor.prototypeToken, "flags.monks-little-details.token-highlight")) {
+                await actor.prototypeToken.update({ "flags.monks-combat-marker.token-highlight": swapFilename(foundry.utils.getProperty(actor.prototypeToken, "flags.monks-little-details.token-highlight"), true) });
             }
-            if (getProperty(actor.prototypeToken, "flags.monks-little-details.token-highlight-scale")) {
-                await actor.prototypeToken.update({ "flags.monks-combat-marker.token-highlight-scale": getProperty(actor.prototypeToken, "flags.monks-little-details.token-highlight-scale") });
+            if (foundry.utils.getProperty(actor.prototypeToken, "flags.monks-little-details.token-highlight-scale")) {
+                await actor.prototypeToken.update({ "flags.monks-combat-marker.token-highlight-scale": foundry.utils.getProperty(actor.prototypeToken, "flags.monks-little-details.token-highlight-scale") });
             }
-            if (getProperty(actor.prototypeToken, "flags.monks-little-details.token-combat-animation")) {
-                await actor.prototypeToken.update({ "flags.monks-combat-marker.token-combat-animation": getProperty(actor.prototypeToken, "flags.monks-little-details.token-combat-animation") });
+            if (foundry.utils.getProperty(actor.prototypeToken, "flags.monks-little-details.token-combat-animation")) {
+                await actor.prototypeToken.update({ "flags.monks-combat-marker.token-combat-animation": foundry.utils.getProperty(actor.prototypeToken, "flags.monks-little-details.token-combat-animation") });
             }
-            if (getProperty(actor.prototypeToken, "flags.monks-little-details.token-combat-animation-hostile")) {
-                await actor.prototypeToken.update({ "flags.monks-combat-marker.token-combat-animation-hostile": getProperty(actor.prototypeToken, "flags.monks-little-details.token-combat-animation-hostile") });
+            if (foundry.utils.getProperty(actor.prototypeToken, "flags.monks-little-details.token-combat-animation-hostile")) {
+                await actor.prototypeToken.update({ "flags.monks-combat-marker.token-combat-animation-hostile": foundry.utils.getProperty(actor.prototypeToken, "flags.monks-little-details.token-combat-animation-hostile") });
             }
         }
 
@@ -190,12 +166,12 @@ export class MonksCombatMarker {
     }
 
     static isDefeated(token) {
-        return (token && (token.combatant && token.combatant.defeated) || token.actor?.statuses.has(CONFIG.specialStatusEffects.DEFEATED) || token.document.overlayEffect == CONFIG.controlIcons.defeated);
+        return (token && (token.combatant && token.combatant.defeated) || !!token.actor?.statuses.has(CONFIG.specialStatusEffects.DEFEATED));
     }
 
     static toggleTurnMarker(token, visible) {
         if (token && token.preventMarker !== true) {
-            if (token?.ldmarker?.transform == undefined || token?.ldmarker?.destroyed) {
+            if (token?.combatMarker?.transform == undefined || token?.combatMarker?.destroyed) {
                 let highlightFile = token.document.getFlag('monks-combat-marker', 'token-highlight');
                 if (!highlightFile) {
                     switch (token.document.disposition) {
@@ -211,8 +187,8 @@ export class MonksCombatMarker {
                     highlightFile = highlightFile.substring(0, highlightFile.length - 3) + "webp";
 
                 const setHighlight = (tex) => { //"modules/monks-combat-marker/img/chest.png"
-                    if (token.ldmarker != undefined) {
-                        token.ldmarker.destroy();
+                    if (token.combatMarker != undefined) {
+                        token.combatMarker.destroy();
                     }
                     const markericon = new PIXI.Sprite(tex);
                     if (highlightFile.endsWith('webm') && tex?.baseTexture?.resource?.source) {
@@ -232,10 +208,10 @@ export class MonksCombatMarker {
                     markericon.position.set(token.x + (token.w / 2), token.y + (token.h / 2));
                     markericon.alpha = 0.8;
                     markericon.pulse = { value: null, dir: 1 };
-                    token.ldmarker = markericon;
-                    canvas.grid.ldmarkers.addChild(token.ldmarker);
-                    token.ldmarker.visible = visible && token.isVisible && !MonksCombatMarker.isDefeated(token);
-                    token.ldmarker._visible = visible;
+                    token.combatMarker = markericon;
+                    canvas.regions.combatmarkers.addChild(token.combatMarker);
+                    token.combatMarker.visible = visible && token.isVisible && !MonksCombatMarker.isDefeated(token);
+                    token.combatMarker._visible = visible;
                 }
 
                 if (MonksCombatMarker.markerCache[highlightFile] && !MonksCombatMarker.markerCache[highlightFile]?.baseTexture?.destroyed)
@@ -247,12 +223,12 @@ export class MonksCombatMarker {
                     });
                 }
             } else {
-                token.ldmarker.visible = visible && token.isVisible && !MonksCombatMarker.isDefeated(token);
-                token.ldmarker._visible = visible;
+                token.combatMarker.visible = visible && token.isVisible && !MonksCombatMarker.isDefeated(token);
+                token.combatMarker._visible = visible;
                 const scale = MonksCombatMarker.tokenHighlightScale(token);
                 const size = Math.max(token.w, token.h) * scale;
-                token.ldmarker.width = token.ldmarker.height = size;
-                token.ldmarker.alpha = 0.8;
+                token.combatMarker.width = token.combatMarker.height = size;
+                token.combatMarker.alpha = 0.8;
             }
 
             if (visible)
@@ -282,9 +258,9 @@ export class MonksCombatMarker {
         if (token == undefined)
             return;
 
-        if (token?.ldmarker) {
-            token.ldmarker.destroy();
-            delete token.ldmarker;
+        if (token?.combatMarker) {
+            token.combatMarker.destroy();
+            delete token.combatMarker;
         }
         delete MonksCombatMarker.turnMarkerAnim[token.id];
 
@@ -297,17 +273,17 @@ export class MonksCombatMarker {
     static animateMarkers(dt) {
         let interval = setting('token-highlight-animate');
         for (const token of Object.values(MonksCombatMarker.turnMarkerAnim)) {
-            if (token?.ldmarker?.transform) {
+            if (token?.combatMarker?.transform) {
                 let delta = interval / 10000;
                 try {
                     let animation = MonksCombatMarker.tokenHighlightAnimation(token);
                     if (animation == 'clockwise') {
-                        token.ldmarker.rotation += (delta * dt);
-                        if (token.ldmarker.rotation > (Math.PI * 2))
-                            token.ldmarker.rotation = token.ldmarker.rotation - (Math.PI * 2);
+                        token.combatMarker.rotation += (delta * dt);
+                        if (token.combatMarker.rotation > (Math.PI * 2))
+                            token.combatMarker.rotation = token.combatMarker.rotation - (Math.PI * 2);
                     }
                     else if (animation == 'counterclockwise') {
-                        token.ldmarker.rotation -= (delta * dt);
+                        token.combatMarker.rotation -= (delta * dt);
                     }
                     else if (animation == 'pulse') {
                         let tokenscale = MonksCombatMarker.tokenHighlightScale(token);
@@ -315,52 +291,52 @@ export class MonksCombatMarker {
                         const maxval = tokenscale + change;
                         const minval = Math.max(tokenscale - change, 0);
 
-                        if (token.ldmarker.pulse.value == undefined) token.ldmarker.pulse.value = minval;
+                        if (token.combatMarker.pulse.value == undefined) token.combatMarker.pulse.value = minval;
                         let adjust = (delta * dt);
 
-                        token.ldmarker.pulse.value = Math.max(token.ldmarker.pulse.value + (token.ldmarker.pulse.dir * adjust), 0);
-                        if (token.ldmarker.pulse.value > maxval) {
-                            token.ldmarker.pulse.value = (tokenscale + change) + ((tokenscale + change) - token.ldmarker.pulse.value);
-                            token.ldmarker.pulse.dir = -1;
-                        } else if (token.ldmarker.pulse.value < minval) {
-                            token.ldmarker.pulse.value = (tokenscale - change) + ((tokenscale - change) - token.ldmarker.pulse.value);
-                            token.ldmarker.pulse.dir = 1;
+                        token.combatMarker.pulse.value = Math.max(token.combatMarker.pulse.value + (token.combatMarker.pulse.dir * adjust), 0);
+                        if (token.combatMarker.pulse.value > maxval) {
+                            token.combatMarker.pulse.value = (tokenscale + change) + ((tokenscale + change) - token.combatMarker.pulse.value);
+                            token.combatMarker.pulse.dir = -1;
+                        } else if (token.combatMarker.pulse.value < minval) {
+                            token.combatMarker.pulse.value = (tokenscale - change) + ((tokenscale - change) - token.combatMarker.pulse.value);
+                            token.combatMarker.pulse.dir = 1;
                         }
 
-                        let perc = ((token.ldmarker.pulse.value - minval) / (maxval - minval));
+                        let perc = ((token.combatMarker.pulse.value - minval) / (maxval - minval));
                         let ease = (perc < 0.5 ? 2 * perc * perc : 1 - Math.pow(-2 * perc + 2, 2) / 2);
 
                         const size = (Math.max(token.w, token.h) * (minval + ((maxval - minval) * ease)));
-                        token.ldmarker.width = token.ldmarker.height = size;
+                        token.combatMarker.width = token.combatMarker.height = size;
                     }
                     else if (animation == 'fadeout') {
                         let tokenscale = MonksCombatMarker.tokenHighlightScale(token);
-                        token.ldmarker.pulse.value = token.ldmarker.pulse.value + (delta * dt);
+                        token.combatMarker.pulse.value = token.combatMarker.pulse.value + (delta * dt);
                         let change = tokenscale / 6;
-                        if (token.ldmarker.pulse.value > tokenscale + change) {
-                            token.ldmarker.pulse.value = 0;
-                            token.ldmarker.alpha = 1
-                        } else if (token.ldmarker.pulse.value > tokenscale) {
-                            token.ldmarker.alpha = 1 - ((token.ldmarker.pulse.value - tokenscale) / change);
+                        if (token.combatMarker.pulse.value > tokenscale + change) {
+                            token.combatMarker.pulse.value = 0;
+                            token.combatMarker.alpha = 1
+                        } else if (token.combatMarker.pulse.value > tokenscale) {
+                            token.combatMarker.alpha = 1 - ((token.combatMarker.pulse.value - tokenscale) / change);
                         }
-                        const size = (Math.max(token.w, token.h) * token.ldmarker.pulse.value);
-                        token.ldmarker.width = token.ldmarker.height = size;
-                        //token.ldmarker.alpha = 1 - (token.ldmarker.pulse.value / tokenscale);
+                        const size = (Math.max(token.w, token.h) * token.combatMarker.pulse.value);
+                        token.combatMarker.width = token.combatMarker.height = size;
+                        //token.combatMarker.alpha = 1 - (token.combatMarker.pulse.value / tokenscale);
                     } else if (animation == 'fadein') {
                         let tokenscale = MonksCombatMarker.tokenHighlightScale(token);
-                        token.ldmarker.pulse.value = token.ldmarker.pulse.value - (delta * dt);
+                        token.combatMarker.pulse.value = token.combatMarker.pulse.value - (delta * dt);
                         let change = tokenscale / 4;
-                        if (token.ldmarker.pulse.value > tokenscale - change) {
-                            token.ldmarker.alpha = ((tokenscale - token.ldmarker.pulse.value) / change);
+                        if (token.combatMarker.pulse.value > tokenscale - change) {
+                            token.combatMarker.alpha = ((tokenscale - token.combatMarker.pulse.value) / change);
                         } else
-                            token.ldmarker.alpha = 1
-                        if (token.ldmarker.pulse.value < 0) {
-                            token.ldmarker.pulse.value = tokenscale;
-                            token.ldmarker.alpha = 0;
+                            token.combatMarker.alpha = 1
+                        if (token.combatMarker.pulse.value < 0) {
+                            token.combatMarker.pulse.value = tokenscale;
+                            token.combatMarker.alpha = 0;
                         }
-                        const size = (Math.max(token.w, token.h) * token.ldmarker.pulse.value);
-                        token.ldmarker.width = token.ldmarker.height = size;
-                        //token.ldmarker.alpha = (token.ldmarker.pulse.value / tokenscale);
+                        const size = (Math.max(token.w, token.h) * token.combatMarker.pulse.value);
+                        token.combatMarker.width = token.combatMarker.height = size;
+                        //token.combatMarker.alpha = (token.combatMarker.pulse.value / tokenscale);
                     }
                 } catch (err) {
                     // skip lost frames if the tile is being updated by the server
@@ -374,32 +350,6 @@ export class MonksCombatMarker {
 
 Hooks.once('init', MonksCombatMarker.init);
 Hooks.on("ready", MonksCombatMarker.ready);
-
-
-Hooks.on("renderSettingsConfig", (app, html, data) => {
-    let btn = $('<button>')
-        .addClass('file-picker')
-        .attr('type', 'button')
-        .attr('data-type', "imagevideo")
-        .attr('data-target', "img")
-        .attr('title', "Browse Files")
-        .attr('tabindex', "-1")
-        .html('<i class="fas fa-file-import fa-fw"></i>')
-        .click(function (event) {
-            const fp = new FilePicker({
-                type: "imagevideo",
-                current: $(event.currentTarget).prev().val(),
-                callback: path => {
-                    $(event.currentTarget).prev().val(path);
-                }
-            });
-            return fp.browse();
-        });
-
-    btn.clone(true).insertAfter($('input[name="monks-combat-marker.token-highlight-picture"]', html).css({ 'flex-basis': 'unset', 'flex-grow': 1 }));
-    btn.clone(true).insertAfter($('input[name="monks-combat-marker.token-highlight-picture-hostile"]', html).css({ 'flex-basis': 'unset', 'flex-grow': 1 }));
-    btn.clone(true).insertAfter($('input[name="monks-combat-marker.token-highlight-picture-neutral"]', html).css({ 'flex-basis': 'unset', 'flex-grow': 1 }));
-});
 
 Hooks.on("updateSetting", (setting, data, options, userid) => {
     if (setting.key.startsWith("monks-combat-marker")) {
@@ -478,9 +428,9 @@ Hooks.on("updateToken", function (document, data, options, userid) {
 });
 
 Hooks.on("refreshToken", function (token) {
-    if (token?.ldmarker?.transform != undefined) {
-        token.ldmarker.position.set(token.x + (token.w / 2), token.y + (token.h / 2));
-        token.ldmarker.visible = token.ldmarker._visible && (!token._animation && token.isVisible && !MonksCombatMarker.isDefeated(token));
+    if (token?.combatMarker?.transform != undefined) {
+        token.combatMarker.position.set(token.x + (token.w / 2), token.y + (token.h / 2));
+        token.combatMarker.visible = token.combatMarker._visible && (!token._animation && token.isVisible && !MonksCombatMarker.isDefeated(token));
     }
 });
 
@@ -543,34 +493,22 @@ Hooks.on("updateCombat", async function (combat, delta) {
 
 Hooks.on("renderTokenConfig", (app, html, data) => {
     if (game.user.isGM) {
-        let tokenhighlight = getProperty(app?.object?.flags, "monks-combat-marker.token-highlight");
-        $('<div>')
-            .addClass('form-group')
-            .append($('<label>').html(i18n("MonksCombatMarker.token-highlight-picture.name")))
-            .append($('<div>').addClass('form-fields')
-                .append($('<button>')
-                    .addClass('file-picker')
-                    .attr('type', 'button')
-                    .attr('data-type', "imagevideo")
-                    .attr('data-target', "img")
-                    .attr('title', "Browse Files")
-                    .attr('tabindex', "-1")
-                    .html('<i class="fas fa-file-import fa-fw"></i>')
-                    .click(function (event) {
-                        const fp = new FilePicker({
-                            type: "imagevideo",
-                            current: $(event.currentTarget).next().val(),
-                            callback: path => {
-                                $(event.currentTarget).next().val(path);
-                            }
-                        });
-                        return fp.browse();
-                    }))
-                .append($('<input>').addClass('token-highlight').attr({ 'type': 'text', 'name': 'flags.monks-combat-marker.token-highlight', 'placeholder': 'path/image.png' }).val(tokenhighlight))
-            )
+        let fieldset = $('<fieldset>')
+            .addClass('monks-combat-marker')
+            .append($('<legend>').html(i18n("MonksCombatMarker.title")))
             .insertAfter($('[name="alpha"]', html).closest('.form-group'));
 
-        let tokenanimation = getProperty(app?.object?.flags, "monks-combat-marker.token-combat-animation");
+        let highlightscale = foundry.utils.getProperty(app?.object?.flags, "monks-combat-marker.token-highlight-scale") || setting("token-highlight-scale");
+        $('<div>')
+            .addClass('form-group')
+            .append($('<label>').html(i18n("MonksCombatMarker.token-highlight-scale.name")))
+            .append($('<div>').addClass('form-fields')
+                .append($('<input>').attr({ 'type': 'range', 'name': 'flags.monks-combat-marker.token-highlight-scale', 'min': '0.2', max: '3', step: "0.05" }).val(highlightscale))
+                .append($('<span>').addClass("range-value").html(highlightscale))
+            )
+            .appendTo(fieldset);
+
+        let tokenanimation = foundry.utils.getProperty(app?.object?.flags, "monks-combat-marker.token-combat-animation");
         let animation = {
             '': '',
             'none': i18n("MonksCombatMarker.animation.none"),
@@ -586,29 +524,45 @@ Hooks.on("renderTokenConfig", (app, html, data) => {
             .append($('<div>').addClass('form-fields')
                 .append($('<select>').attr({ 'name': 'flags.monks-combat-marker.token-combat-animation' }).append(Object.entries(animation).map(([k, v]) => `<option value="${k}">${v}</option>`).join("")).val(tokenanimation))
             )
-            .insertAfter($('[name="alpha"]', html).closest('.form-group'));
+            .appendTo(fieldset);
 
-        let highlightscale = getProperty(app?.object?.flags, "monks-combat-marker.token-highlight-scale") || setting("token-highlight-scale");
+        let tokenhighlight = foundry.utils.getProperty(app?.object?.flags, "monks-combat-marker.token-highlight");
         $('<div>')
             .addClass('form-group')
-            .append($('<label>').html(i18n("MonksCombatMarker.token-highlight-scale.name")))
+            .append($('<label>').html(i18n("MonksCombatMarker.token-highlight-picture.name")))
             .append($('<div>').addClass('form-fields')
-                .append($('<input>').attr({ 'type': 'range', 'name': 'flags.monks-combat-marker.token-highlight-scale', 'min': '0.2', max: '3', step: "0.05" }).val(highlightscale))
-                .append($('<span>').addClass("range-value").html(highlightscale))
+                .append($('<file-picker>')
+                    .attr('name', 'flags.monks-combat-marker.token-highlight')
+                    .attr('type', "imagevideo")
+                    .attr('placeholder', 'path/image.png')
+                    .attr('value', tokenhighlight)
+                    .append($('<input>').addClass('image').attr({ 'type': 'text', 'placeholder': 'path/image.png' }).val(tokenhighlight))
+                    .append($('<button>').attr('data-tooltip', "Browse Files").attr('tabindex', "-1").attr('type', 'button').html('<i class="fa-solid fa-file-import fa-fw"></i>')
+                    .click(function (event) {
+                        const fp = new FilePicker({
+                            type: "imagevideo",
+                            current: $(event.currentTarget).next().val(),
+                            callback: path => {
+                                $(event.currentTarget).next().val(path);
+                            }
+                        });
+                        return fp.browse();
+                    })))
+                
             )
-            .insertAfter($('[name="alpha"]', html).closest('.form-group'));
+            .appendTo(fieldset);
 
         app.setPosition();
     }
 });
 
 Hooks.on("destroyToken", (token) => {
-    if (token.ldmarker) {
-        token.ldmarker.destroy();
-        delete token.ldmarker;
+    if (token.combatMarker) {
+        token.combatMarker.destroy();
+        delete token.combatMarker;
     }
 });
 
-Hooks.on("drawGridLayer", function (layer) {
-    layer.ldmarkers = layer.addChildAt(new PIXI.Container(), layer.getChildIndex(layer.borders));
+Hooks.on("drawRegionLayer", function (layer) {
+    layer.combatmarkers = layer.addChildAt(new PIXI.Container(), layer.children.length - 1);
 });

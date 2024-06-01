@@ -1,3 +1,7 @@
+# version 12.01
+
+v12 Compatibility
+
 # version 11.05
 
 Maybe fixed issue with disappearing combat markers

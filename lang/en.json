@@ -1,4 +1,5 @@
 {
+	"MonksCombatMarker.title": "Combat Highlight",
 	"MonksCombatMarker.token-highlight-animate.name": "Animation speed",
 	"MonksCombatMarker.token-highlight-animate.hint": "Animate the token combat highlight, set to 0 for no animation",
 	"MonksCombatMarker.token-highlight-picture.name": "Friendly Highlight Image",
