@@ -46,7 +46,9 @@ export let patchFunc = (prop, func, type = "WRAPPER") => {
     }
 }
 
-class MonksCombatMarkerSprite extends PIXI.Sprite {
+
+
+class CombatMarker extends PIXI.Sprite {
     constructor(texture) {
         super(texture);
     }
@@ -200,7 +202,7 @@ export class MonksCombatMarker {
                     if (token.combatMarker != undefined) {
                         token.combatMarker.destroy();
                     }
-                    const markericon = new MonksCombatMarkerSprite(tex);
+                    const markericon = new CombatMarker(tex);
                     if (highlightFile.endsWith('webm') && tex?.baseTexture?.resource?.source) {
                         tex.baseTexture.resource.source.autoplay = true;
                         tex.baseTexture.resource.source.loop = true;
@@ -222,6 +224,7 @@ export class MonksCombatMarker {
                     canvas.primary.addChild(token.combatMarker);
                     token.combatMarker.visible = visible && token.isVisible && !MonksCombatMarker.isDefeated(token);
                     token.combatMarker._visible = visible;
+                    token.combatMarker.elevation = token.document.elevation;
                 }
 
                 if (MonksCombatMarker.markerCache[highlightFile] && !MonksCombatMarker.markerCache[highlightFile]?.baseTexture?.destroyed)
@@ -239,6 +242,7 @@ export class MonksCombatMarker {
                 const size = Math.max(token.w, token.h) * scale;
                 token.combatMarker.width = token.combatMarker.height = size;
                 token.combatMarker.alpha = 0.8;
+                token.combatMarker.elevation = token.document.elevation;
             }
 
             if (visible)
@@ -434,6 +438,11 @@ Hooks.on("updateToken", function (document, data, options, userid) {
     if (setting('token-highlight-remove') && (data.x != undefined || data.y != undefined)) {
         token.preventMarker = true;
         MonksCombatMarker.removeTurnMarker(token);
+    }
+    if (token.combatMarker) {
+        if (data.elevation !== undefined) {
+            token.combatMarker.elevation = data.elevation;
+        }
     }
 });
 
